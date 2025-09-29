@@ -36,9 +36,9 @@ def preprocess_image(image_path):
     img_array = np.expand_dims(img_array, axis=0)
 
     # The training model had a Rescaling(1./255) layer built-in,
-    # but for standalone prediction, it's safer to ensure normalization here.
+    # but for standalone prediction, it's safer to ensure normalization.
     # However, since the Rescaling layer is part of the saved model,
-    # we don't strictly need to do it twice. We will rely on the saved model,
+    # rely on the saved model,
     # but the input must be a float type.
 
     return img_array
