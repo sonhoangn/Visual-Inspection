@@ -1,18 +1,38 @@
+# train_model.py
+
 import tensorflow as tf
 from keras.models import Sequential
-from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense
-from keras.layers import Rescaling, RandomFlip, RandomRotation
+from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Rescaling, RandomFlip, RandomRotation
 import os
+import sys
 
 # --- Configuration ---
-DATA_DIR = 'data/train'
+# *** CRITICAL MODIFICATION: Read paths from environment variables ***
+# If run outside Streamlit, use a default path, otherwise use the path provided by the app.py
+DATA_DIR = os.getenv('DATA_DIR', 'default/data/train')  # Fallback if not set
+MODEL_SAVE_PATH = os.getenv('MODEL_SAVE_PATH', 'default_model.keras')
+# Convert environment variable string back to integer
+try:
+    EPOCHS = int(os.getenv('EPOCHS', 10))
+except ValueError:
+    EPOCHS = 10  # Default fallback
+
 IMG_HEIGHT = 128
 IMG_WIDTH = 128
 BATCH_SIZE = 32
-EPOCHS = 10
-MODEL_SAVE_PATH = 'defect_model.keras'
+# ------------------------------------------------------------------
+
+print("--- Running Model Training Script ---")
+print(f"Data Source: {DATA_DIR}")
+print(f"Epochs: {EPOCHS}")
+print(f"Save Path: {MODEL_SAVE_PATH}")
 
 # 1. Load Data using the modern tf.keras.utils method
+# Make sure the data directory exists before trying to load
+if not os.path.isdir(DATA_DIR):
+    print(f"FATAL ERROR: Data directory not found at {DATA_DIR}")
+    # Exit the script with an error code
+    sys.exit(1)
 # splitting and labeling
 print("Loading data...")
 train_ds = tf.keras.utils.image_dataset_from_directory(
