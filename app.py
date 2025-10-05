@@ -4,6 +4,7 @@ import subprocess
 import json
 import zipfile
 import shutil
+import sys
 # import base64
 
 # --- Configuration ---
@@ -34,7 +35,7 @@ def train_model_function(data_dir, save_path, epochs, img_size, batch_size):
 
     try:
         process = subprocess.run(
-            ['python', 'train_model.py'],
+            [sys.executable, 'train_model.py'],
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
