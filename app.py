@@ -2,31 +2,26 @@ import streamlit as st
 import os
 import subprocess
 import json
-# Removed unused 'shutil' import
 
 # --- Configuration for Streamlit App ---
-st.set_page_config(layout="wide", page_title="Model Training & Inspection App")
-st.title("Image Classification Web App")
+st.set_page_config(layout="wide", page_title="Model Training & Inspection")
+st.title("A simple Image Classification Web App")
 st.write("---")
 
 # Initialize session state variables for persistence across tabs
 if 'model_save_path' not in st.session_state:
-    st.session_state['model_save_path'] = "my_trained_model/defect_model.keras"
+    st.session_state['model_save_path'] = "my_trained_model/defect_model.keras" # Default location for trained model to be saved
 if 'training_result' not in st.session_state:
     st.session_state['training_result'] = None
 
 # 1. Training Logic Wrapped in a Function
 
-# @st.cache_resource is used for heavy-to-create objects like ML models.
-# It makes sure the training is only run once unless the input parameters change.
-@st.cache_resource(show_spinner="Training model... please wait! ⏳")
-def train_model_function(data_dir, save_path, epochs, img_size, batch_size):
-    """
-    Runs the model training script as a subprocess and saves the model.
+# @st.cache_resource is used for heavy-to-create objects like ML models, which ensures the training is only run once unless the input parameters change.
+@st.cache_resource(show_spinner="Training model...⏳")
 
-    In a real-world app, you would move the contents of 'train_model.py'
-    into this function, but for integration, running the script is easier.
-    """
+# The train_model_function will run train_model.py as a subprocess and save the trained model. train_model.py can also be included entirely in this function, but requires refactoring.
+def train_model_function(data_dir, save_path, epochs, img_size, batch_size):
+
     st.info(f"Starting training with data from: **{data_dir}**")
 
     # Define the environment variables for the subprocess to use
