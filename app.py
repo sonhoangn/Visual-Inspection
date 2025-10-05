@@ -2,192 +2,237 @@ import streamlit as st
 import os
 import subprocess
 import json
+import zipfile
+import shutil
+# import base64
 
-# --- Configuration for Streamlit App ---
+# --- Configuration ---
 st.set_page_config(layout="wide", page_title="Model Training & Inspection")
-st.title("A simple Image Classification Web App")
+st.title("Simple Image Classification Web App - Test")
 st.write("---")
 
-# Initialize session state variables for persistence across tabs
+# Initialize session state variables
 if 'model_save_path' not in st.session_state:
-    st.session_state['model_save_path'] = "my_trained_model/defect_model.keras" # Default location for trained model to be saved
+    st.session_state['model_save_path'] = "cloud_models/trained_classification_model.keras"
 if 'training_result' not in st.session_state:
     st.session_state['training_result'] = None
 
-# 1. Training Logic Wrapped in a Function
+TEMP_CLOUD_ROOT = "cloud_temp_data"
 
-# @st.cache_resource is used for heavy-to-create objects like ML models, which ensures the training is only run once unless the input parameters change.
-@st.cache_resource(show_spinner="Training model...⏳")
 
-# The train_model_function will run train_model.py as a subprocess and save the trained model. train_model.py can also be included entirely in this function, but requires refactoring.
+# 1. Training Logic (Adjusted for Simple Classification Data Structure)
+@st.cache_resource(show_spinner="Training classification model... please wait! ⏳")
 def train_model_function(data_dir, save_path, epochs, img_size, batch_size):
-
+    # NOTE: data_dir will now be the path to the extracted root folder (containing 'good' and 'defective')
     st.info(f"Starting training with data from: **{data_dir}**")
 
-    # Define the environment variables for the subprocess to use
+    # Define the environment variables for the subprocess
     env = os.environ.copy()
-    env['DATA_DIR'] = data_dir
+    env['DATA_DIR'] = data_dir  # Pass the root folder path (e.g., cloud_temp_data/extracted_data)
     env['MODEL_SAVE_PATH'] = save_path
-    env['EPOCHS'] = str(epochs)  # Pass other params as needed
+    env['EPOCHS'] = str(epochs)
 
     try:
-        # Run the training script as a separate Python process
-        # We assume 'train_model.py' is in the same directory
         process = subprocess.run(
             ['python', 'train_model.py'],
-            check=True,  # Raise an exception for non-zero exit codes
+            check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            env=env,  # Pass the directory paths to the script via env vars
+            env=env,
             text=True
         )
 
-        # Display the output from the training script
         st.code(process.stdout, language='text')
 
-        # Check if the model file was actually created
         if os.path.exists(save_path):
-            st.success(f"✅ **Training complete!** Model saved to: `{save_path}`")
-            return f"Model trained and saved at {save_path}"
+            return f"Classification Model trained and saved at {save_path}"
         else:
             st.error("Training finished, but model file was not found. Check the script output.")
             return None
 
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledError as e:
         st.error("❌ **Training failed!** Check the error log below.")
-        st.exception(e)
         st.code(e.stderr, language='text')
         return None
     except FileNotFoundError:
         st.error("❌ **Error:** Could not find 'train_model.py' or 'python' interpreter.")
         return None
 
+
 # Split App into Tabs
 tab_train, tab_inspect = st.tabs(["🚀 Model Training", "🔍 Unit Inspection"])
 
 # =========================================================================
-# MODEL TRAINING TAB (FIXED UI PLACEMENT)
+# 🚀 MODEL TRAINING TAB (Cloud Logic Implemented for Classification)
 # =========================================================================
 with tab_train:
     st.header("1. Configure Training Parameters")
 
-    # Use a form to group inputs and control when the app reruns
+    # --- A. Data Input (File Uploader) ---
+    uploaded_zip_file = st.file_uploader(
+        "Upload Training Data (.zip file)",
+        type=['zip'],
+        help="The ZIP file must contain two subdirectories at the root: **'good'** and **'defective'**."
+    )
+
     with st.form("training_config_form"):
-        col1, col2 = st.columns(2)
-
-        with col1:
-            data_dir_path = st.text_input(
-                "📂 **Image Data Directory Path**",
-                value="data/train",
-                key="data_dir_input",
-                help="Enter the local path to the folder containing your image class subdirectories (e.g., 'data/train')."
-            )
-
-        with col2:
-            # Connect this input directly to the session state variable
-            st.session_state['model_save_path'] = st.text_input(
-                "💾 **Model Save Path**",
-                value=st.session_state['model_save_path'],
-                key="model_path_input",
-                help="Enter the full path, including the filename, to save the trained model (e.g., 'models/my_model.keras')."
-            )
-            model_save_path_local = st.session_state['model_save_path'] # Local alias for use below
+        # --- B. Model Save Path (Internal to Cloud) ---
+        model_save_path_local = st.text_input(
+            "💾 **Model Save Path (Internal)**",
+            value=st.session_state['model_save_path'],
+            key="model_path_input",
+            help="This is the path on the cloud server where the model will be saved during the session."
+        )
 
         # Advanced Configuration (Optional)
         with st.expander("Advanced Configuration"):
             epochs = st.slider("Number of Epochs", 1, 50, 10)
-            batch_size = st.slider("Batch Size", 16, 128, 32)
+            batch_size = st.slider("Batch Size", 8, 64, 8)
             img_height = st.number_input("Image Height (px)", 32, 512, 128)
             img_width = st.number_input("Image Width (px)", 32, 512, 128)
 
         st.write("---")
-        submitted = st.form_submit_button("🚀 **Start Model Training**", type="primary")
+        submitted = st.form_submit_button("🚀 **Start Classification Training**", type="primary")
 
     if submitted:
-        # 3.1. Basic Validation
-        if not os.path.isdir(data_dir_path):
-            st.error(f"⚠️ **Error:** Data directory not found at `{data_dir_path}`. Please check the path.")
+        if uploaded_zip_file is None:
+            st.error("⚠️ Please upload a ZIP file containing the training dataset.")
+            st.session_state['training_result'] = None
+
         else:
-            # 3.2. Ensure the save directory exists
-            save_dir = os.path.dirname(model_save_path_local)
-            if save_dir and not os.path.exists(save_dir):
+            os.makedirs(TEMP_CLOUD_ROOT, exist_ok=True)
+
+            # --- 1. Save and Extract ZIP Data ---
+            temp_zip_path = os.path.join(TEMP_CLOUD_ROOT, "uploaded_data.zip")
+            with open(temp_zip_path, "wb") as f:
+                f.write(uploaded_zip_file.getbuffer())
+
+            try:
+                with st.spinner("Extracting data..."):
+                    extracted_data_dir = os.path.join(TEMP_CLOUD_ROOT, "extracted_data")
+                    if os.path.exists(extracted_data_dir):
+                        shutil.rmtree(extracted_data_dir)
+                    os.makedirs(extracted_data_dir)
+
+                    with zipfile.ZipFile(temp_zip_path, 'r') as zip_ref:
+                        zip_ref.extractall(extracted_data_dir)
+
+                        # --- VALIDATION CHECK for Classification Folders ---
+                good_dir = os.path.join(extracted_data_dir, "good")
+                defective_dir = os.path.join(extracted_data_dir, "defective")
+
+                if not os.path.isdir(good_dir) or not os.path.isdir(defective_dir):
+                    st.error(
+                        "❌ Extraction failed: Could not find **'good'** and **'defective'** folders in the ZIP file's root.")
+                    st.session_state['training_result'] = None
+
+                # --- 2. Ensure the model save directory exists ---
+                save_dir = os.path.dirname(model_save_path_local)
                 os.makedirs(save_dir, exist_ok=True)
-                st.warning(f"Created model save directory: `{save_dir}`")
 
-            # 3.3. Call the training function
-            st.session_state['training_result'] = train_model_function(
-                data_dir_path,
-                model_save_path_local,
-                epochs,
-                (img_height, img_width),
-                batch_size
-            )
+                # --- 3. Call the training function ---
+                # The data_dir passed is the root folder containing the class subdirectories
+                st.session_state['training_result'] = train_model_function(
+                    extracted_data_dir,
+                    model_save_path_local,
+                    epochs,
+                    (img_height, img_width),
+                    batch_size
+                )
 
-    # 4. Display Final Result
-    if st.session_state['training_result']:
+            except Exception as e:
+                st.error(f"❌ Error during data extraction or training: {e}")
+                st.session_state['training_result'] = None
+
+            finally:
+                # --- 4. Cleanup temporary data files ---
+                if os.path.exists(temp_zip_path):
+                    os.remove(temp_zip_path)
+                if os.path.exists(extracted_data_dir):
+                    shutil.rmtree(extracted_data_dir)
+
+                    # --- C. Model Output (Download Button) ---
+    if st.session_state['training_result'] and os.path.exists(model_save_path_local):
         st.balloons()
         st.markdown(f"### 🎉 Success: {st.session_state['training_result']}")
 
+        with open(model_save_path_local, "rb") as file:
+            st.download_button(
+                label="⬇️ **Download Trained Model (.keras)**",
+                data=file,
+                file_name=os.path.basename(model_save_path_local),
+                mime='application/octet-stream',
+                type="primary",
+                help="Download the model to use for future inspection sessions."
+            )
+
 # =========================================================================
-# 🔍 UNIT INSPECTION TAB
+# 🔍 UNIT INSPECTION TAB (File Uploader Logic Remains)
 # =========================================================================
 with tab_inspect:
     st.header("1. Provide Input")
 
-    # Read model path directly from session state
-    inspection_model_path = st.text_input(
-        "📂 **Trained Model Path (.keras)**",
-        value=st.session_state['model_save_path'],
-        help="Path to the saved Keras model file."
-    )
+    col_model, col_image = st.columns(2)
 
-    # File uploader for the image to inspect
-    uploaded_image = st.file_uploader(
-        "🖼️ **Upload Image for Inspection**",
-        type=['jpg', 'jpeg', 'png']
-    )
+    # --- A. Model Input (File Uploader) ---
+    with col_model:
+        uploaded_model_file = st.file_uploader(
+            "📂 **Upload Trained Model (.keras)**",
+            type=['keras', 'h5'],
+            key="inspection_model_uploader",
+            help="Upload a model trained previously or downloaded from the training tab."
+        )
+
+    # --- B. Image Input (File Uploader) ---
+    with col_image:
+        uploaded_image = st.file_uploader(
+            "🖼️ **Upload Image for Inspection**",
+            type=['jpg', 'jpeg', 'png'],
+            key="inspection_image_uploader"
+        )
 
     st.write("---")
     st.header("2. Inspection Result")
 
-    # Use a separate button for inspection
-    if uploaded_image is not None and st.button("🔍 **Run Inspection**"):
-        # Temporary directory to save the uploaded image for the subprocess to access
-        temp_dir = "temp_uploads"
-        os.makedirs(temp_dir, exist_ok=True)
-        temp_image_path = os.path.join(temp_dir, uploaded_image.name)
+    if uploaded_image is not None and uploaded_model_file is not None and st.button("🔍 **Run Inspection**"):
 
-        # Save the uploaded file to disk
+        TEMP_INSPECT_DIR = "temp_inspection"
+        os.makedirs(TEMP_INSPECT_DIR, exist_ok=True)
+
+        # 1. Save uploaded model temporarily on the cloud server
+        temp_model_path = os.path.join(TEMP_INSPECT_DIR, "uploaded_model.keras")
+        with open(temp_model_path, "wb") as f:
+            f.write(uploaded_model_file.getbuffer())
+
+        # 2. Save uploaded image temporarily on the cloud server
+        temp_image_path = os.path.join(TEMP_INSPECT_DIR, uploaded_image.name)
         with open(temp_image_path, "wb") as f:
             f.write(uploaded_image.getbuffer())
 
         # --- Run the Inspection Subprocess ---
-        with st.spinner("Inspecting unit..."):
+        with st.spinner("Running inspection..."):
             try:
-                # Run the inspection script
                 process = subprocess.run(
-                    ['python', 'inspect_unit.py', temp_image_path, inspection_model_path],
+                    ['python', 'inspect_unit.py', temp_image_path, temp_model_path],
                     check=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True
                 )
 
-                # The output is expected to be a single JSON string
                 result_json = process.stdout.strip()
                 inspection_result = json.loads(result_json)
 
                 # --- Display Results ---
                 if inspection_result["success"]:
+
                     pred_class = inspection_result["prediction_class"]
-                    confidence = inspection_result["confidence"]
+                    confidence = inspection_result.get("confidence", "N/A")  # Use .get() for robustness
 
                     st.success("✅ **Inspection Complete!**")
 
-                    # Custom display based on prediction
-                    if pred_class == 'defective':
+                    if pred_class.lower() == 'defective':
                         st.error(f"## ❌ UNIT IS DEFECTIVE")
-                        st.balloons()
                     else:
                         st.success(f"## ✅ UNIT IS GOOD")
 
@@ -200,24 +245,20 @@ with tab_inspect:
                         st.metric(
                             label="Predicted Class",
                             value=pred_class.upper(),
-                            delta=f"Confidence: {confidence * 100:.2f}%"
+                            delta=f"Confidence: {confidence * 100:.2f}%" if isinstance(confidence,
+                                                                                       (int, float)) else None
                         )
-                        st.metric(
-                            label="Raw Score (P('good'))",
-                            value=f"{inspection_result['raw_score_good']:.4f}"
-                        )
+                        st.text(f"Model File Used: {uploaded_model_file.name}")
 
                 else:
                     st.error(f"❌ **Inspection Failed:** {inspection_result['message']}")
                     st.code(process.stderr, language='text')
 
-            except subprocess.CalledProcessError as e:
-                st.error("❌ **Script Error:** The inspection script terminated with an error.")
-                st.code(e.stderr, language='text')
-            except json.JSONDecodeError:
-                st.error("❌ **Result Error:** Could not parse the script output.")
-                st.text(process.stdout)
+            except Exception as e:
+                st.error("❌ **An unexpected error occurred during inspection.**")
+                st.exception(e)
+
             finally:
-                # Cleanup the temporary image file
-                if os.path.exists(temp_image_path):
-                    os.remove(temp_image_path)
+                # --- Cleanup ---
+                if os.path.exists(TEMP_INSPECT_DIR):
+                    shutil.rmtree(TEMP_INSPECT_DIR)
