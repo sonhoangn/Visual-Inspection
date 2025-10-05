@@ -50,7 +50,7 @@ def train_model_function(data_dir, save_path, epochs, img_size, batch_size):
             st.error("Training finished, but model file was not found. Check the script output.")
             return None
 
-    except subprocess.CalledError as e:
+    except subprocess.CalledProcessError as e:
         st.error("❌ **Training failed!** Check the error log below.")
         st.code(e.stderr, language='text')
         return None
