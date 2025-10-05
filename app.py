@@ -66,7 +66,7 @@ def train_model_function(data_dir, save_path, epochs, img_size, batch_size):
 tab_train, tab_inspect = st.tabs(["🚀 Model Training", "🔍 Unit Inspection"])
 
 # =========================================================================
-# 🚀 MODEL TRAINING TAB (FIXED UI PLACEMENT)
+# MODEL TRAINING TAB (FIXED UI PLACEMENT)
 # =========================================================================
 with tab_train:
     st.header("1. Configure Training Parameters")
@@ -152,7 +152,6 @@ with tab_inspect:
 
     # Use a separate button for inspection
     if uploaded_image is not None and st.button("🔍 **Run Inspection**"):
-        # ... (Your existing inspection button logic and display remains correct) ...
         # Temporary directory to save the uploaded image for the subprocess to access
         temp_dir = "temp_uploads"
         os.makedirs(temp_dir, exist_ok=True)

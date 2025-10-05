@@ -5,7 +5,7 @@ import os
 import sys
 
 # --- Configuration ---
-# *** CRITICAL MODIFICATION: Read paths from environment variables ***
+# Read paths from environment variables ***
 # If run outside Streamlit, use a default path, otherwise use the path provided by the app.py
 DATA_DIR = os.getenv('DATA_DIR', 'default/data/train')  # Fallback if not set
 MODEL_SAVE_PATH = os.getenv('MODEL_SAVE_PATH', 'default_model.keras')

@@ -1,12 +1,10 @@
-# inspect_unit.py
-
 import tensorflow as tf
 import numpy as np
 import sys
 import os
-import json  # <-- NEW IMPORT
+import json
 
-# --- Configuration (MUST MATCH training script) ---
+# --- Configuration  ---
 MODEL_PATH = 'defect_model.keras'
 IMG_HEIGHT = 128
 IMG_WIDTH = 128
@@ -14,12 +12,8 @@ CLASS_NAMES = ['defective', 'good']
 PROBABILITY_THRESHOLD = 0.5
 
 
-# 1. Image Preprocessing Function
+# 1. Image Preprocessing Function: Loads an image, resizes it, converts it to a numpy array, and adds the batch dimension.
 def preprocess_image(image_path):
-    """
-    Loads an image, resizes it, converts it to a numpy array,
-    and adds the batch dimension.
-    """
     # Use Keras utility to load the image and resize it
     try:
         img = tf.keras.utils.load_img(
@@ -36,9 +30,8 @@ def preprocess_image(image_path):
     return img_array
 
 
-# 2. Main Inspection Function (MODIFIED TO RETURN JSON)
+# 2. Main Inspection Function (MODIFIED TO RETURN JSON) Loads the model, preprocesses the image, and makes a prediction.
 def inspect_image(image_path, model_path):  # <-- Added model_path argument
-    """Loads the model, preprocesses the image, and makes a prediction."""
 
     # Set up a dictionary to hold the result
     result = {
@@ -56,7 +49,7 @@ def inspect_image(image_path, model_path):  # <-- Added model_path argument
         return
 
     try:
-        # Use st.cache_resource if this function was in app.py, but here we load it fresh
+        # Use st.cache_resource if this function was in app.py, freshly load here
         model = tf.keras.models.load_model(model_path)
     except Exception as e:
         result["message"] = f"Error loading model: {e}"
@@ -95,7 +88,7 @@ def inspect_image(image_path, model_path):  # <-- Added model_path argument
 if __name__ == '__main__':
     # Expect 2 command-line arguments: image_path and model_path
     if len(sys.argv) < 3:
-        # Fallback error message (printed to STDERR so it doesn't interfere with JSON output)
+        # Fallback error message (STDERR so it doesn't interfere with JSON output)
         print("Usage: python inspect_unit.py <path_to_image> <path_to_model>", file=sys.stderr)
         sys.exit(1)
 
